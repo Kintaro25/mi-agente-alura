@@ -35,10 +35,10 @@ def preparar_agente(ruta_pdf, api_key):
 
         # ===== LLM CON GROQ (rápido y gratuito) =====
         llm = ChatGroq(
-            model="llama3-70b-8192",  # Modelo potente y rápido
-            temperature=0.2,
-            groq_api_key=api_key
-        )
+    model="llama-3.3-70b-versatile",  # <--- Modelo actual y recomendado
+    temperature=0.2,
+    groq_api_key=api_key
+)
         # ===========================================
 
         prompt_template = (
