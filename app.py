@@ -8,15 +8,23 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 
-# 1. Diseñamos la pantalla del E-commerce en español
+# 1. Configuración de la página web
 st.set_page_config(page_title="Asistente TechStore Perú", page_icon="💻")
 st.title("💻 Asistente Virtual - TechStore Perú")
 st.write("¡Hola! Soy tu asesor tecnológico. Pregúntame sobre especificaciones, precios en soles (S/), garantías o envíos de nuestros productos.")
 
+# 2. Obligamos al sistema a leer la clave de la "caja fuerte" de Streamlit
+api_key = None
+if "GOOGLE_API_KEY" in st.secrets:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    os.environ["GOOGLE_API_KEY"] = api_key
+elif "GOOGLE_API_KEY" in os.environ:
+    api_key = os.environ["GOOGLE_API_KEY"]
+
 PDF_PATH = "documento.pdf"
 
 @st.cache_resource
-def preparar_agente(ruta_pdf):
+def preparar_agente(ruta_pdf, key):
     if not os.path.exists(ruta_pdf):
         st.error("No se encontró el catálogo 'documento.pdf'. Por favor súbelo a tu repositorio.")
         return None
@@ -27,15 +35,21 @@ def preparar_agente(ruta_pdf):
     separador = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     fragmentos = separador.split_documents(paginas)
 
-    # Embeddings y Base de Datos Vectorial gratuita de Google
-    embeddings = GoogleGenerativeAIEmbeddings(model="embedding-001")
+    # Embeddings y Base de Datos (entregando la clave en mano y usando el modelo actual)
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/text-embedding-004", 
+        google_api_key=key
+    )
     base_de_datos = FAISS.from_documents(fragmentos, embeddings)
     buscador = base_de_datos.as_retriever(search_kwargs={"k": 3})
 
     # Modelo de Inteligencia Artificial gratuito: Gemini 1.5 Flash
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.2)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash", 
+        temperature=0.2,
+        google_api_key=key
+    )
     
-    # Personalidad e instrucciones del Agente Virtual
     instrucciones = (
         "Eres un asesor de ventas y soporte técnico amable de la tienda 'TechStore Perú'. "
         "Responde a las preguntas del cliente utilizando ÚNICAMENTE la información del catálogo "
@@ -56,9 +70,8 @@ def preparar_agente(ruta_pdf):
 
 # 3. Flujo principal de la aplicación
 if os.path.exists(PDF_PATH):
-    # Verificamos que tengamos la clave gratuita de Google configurada
-    if "GOOGLE_API_KEY" in os.environ or st.secrets.get("GOOGLE_API_KEY"):
-        mi_agente = preparar_agente(PDF_PATH)
+    if api_key:
+        mi_agente = preparar_agente(PDF_PATH, api_key)
         pregunta = st.text_input("Escribe tu consulta sobre laptops, PC o accesorios aquí:")
         
         if pregunta:
@@ -67,6 +80,6 @@ if os.path.exists(PDF_PATH):
                 st.write("### 🤖 Respuesta del Asesor:")
                 st.write(resultado["answer"])
     else:
-        st.warning("⚠️ Falta configurar la clave GOOGLE_API_KEY en los ajustes de la plataforma.")
+        st.warning("⚠️ Falta configurar la clave GOOGLE_API_KEY en los ajustes de Streamlit (Advanced settings -> Secrets).")
 else:
     st.info("📂 Sube tu archivo 'documento.pdf' al repositorio para activar el asesor virtual.")
