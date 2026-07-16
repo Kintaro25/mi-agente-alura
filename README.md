@@ -1,28 +1,56 @@
-1. 🛒 Asistente Virtual E-commerce - Tienda de computo
+Asistente Virtual E-commerce - Tienda de computo
 
-Este proyecto consiste en un Agente de Inteligencia Artificial diseñado para funcionar como un asesor de ventas y soporte técnico para una tienda de tecnología. El agente responde preguntas precisas sobre especificaciones de hardware, precios en Soles (S/), garantías y políticas de envío basándose exclusivamente en el catálogo oficial de la tienda.
+un asistente virtual que hice para el Challenge de Alura Latam. Mi objetivo es ayudar a los clientes de una tienda de laptops llamada TechStore Perú a resolver sus dudas de forma rápida y sencilla.
 
----
 
-2. 📐 Arquitectura de la Solución
+Puedes preguntarme sobre:
+💰 Precios de laptops
+🚚 Envíos y tiempos de entrega
+🔧 Garantías y devoluciones
+💳 Métodos de pago
+📦 Especificaciones técnicas
 
-La aplicación utiliza una arquitectura RAG (Retrieval-Augmented Generation)** para asegurar que el agente brinde información veraz y no sufra de alucinaciones:
+🧠 ¿Cómo funciona?
+Este asistente usa Inteligencia Artificial para leer un catálogo en PDF y responder preguntas como si fuera un asesor de ventas.
 
-- Ingesta de Datos: El catálogo de productos en formato PDF es procesado dinámicamente mediante `PyPDFLoader`.
-- Segmentación (Chunking): El texto se divide en bloques semánticos utilizando `RecursiveCharacterTextSplitter` para retener el contexto de cada producto y política.
-- Indexación y Embeddings: Se generan vectores utilizando el modelo gratuito `embedding-001` de Google Generative AI.
-- Almacenamiento Vectorial: Se utiliza **FAISS** como base de datos vectorial en memoria para realizar búsquedas de similitud ultrarrápidas.
-- Generación de Respuesta: Ante la consulta del usuario, el sistema recupera los fragmentos más relevantes del catálogo y los procesa utilizando el LLM *Gemini 1.5 Flash* para redactar una respuesta natural, amable y en     español.
+El proceso es simple:
+Lectura del PDF.
+División en fragmentos.
+Generación de embeddings.
+Búsqueda inteligente.
+Respuesta con IA.
 
----
+- Tecnologías usadas
+Herramienta	Para qué sirve
+Python	
+Streamlit(Crear la interfaz web)
+LangChain
+FAISS
+sentence-transformers (embeddings)
+Groq(Modelo de lenguaje para generar respuestas)
 
-3. 🛠️ Tecnologías y Herramientas Utilizadas
+mi-agente-alura/
+├── app.py                      # Código principal del asistente
+├── requirements.txt            # Librerías necesarias
+├── catalogo_laptops.pdf        # Catálogo de productos (fuente de información)
+├── README.md                   # Este archivo
+└── Captura de funcionamiento.png  # Captura de la app funcionando
 
--Lenguaje: Python 3.10+
--Framework Web: Streamlit
--Orquestador IA: LangChain
--Base de Datos Vectorial: FAISS (Facebook AI Similarity Search)
--Modelos de IA (LLM y Embeddings): Google Gemini API (Totalmente gratuito)
--Despliegue (Cloud): Streamlit Community Cloud
+¿Cómo ejecutarlo?
+ 1: Probar la versión en línea (recomendado)
+El asistente ya está desplegado en Streamlit Cloud. Puedes probarlo aquí:
 
----
+🔗 https://mi-agente-alura-isrlpekytdafhgjgsf7jhf.streamlit.app/
+
+No necesitas instalar nada, solo entrar y hacer preguntas.
+
+2: Ejecutar localmente
+Si quieres modificar el código o probarlo en tu computadora:
+
+-Clona el repositorio
+-Ve a console.groq.com y crea una cuenta gratis.
+-Genera una clave API.
+-toml GROQ_API_KEY = "tu-clave-api-aqui"
+
+3:Ejecuta la app
+
