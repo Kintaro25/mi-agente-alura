@@ -1,55 +1,44 @@
-import streamlit as st
-import os
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
-
-# 1. Configuración de la página web
-st.set_page_config(page_title="Asistente TechStore Perú", page_icon="💻")
-st.title("💻 Asistente Virtual - TechStore Perú")
-st.write("¡Hola! Soy tu asesor tecnológico. Pregúntame sobre especificaciones, precios en soles (S/), garantías o envíos de nuestros productos.")
-
-# 2. Obligamos al sistema a leer la clave de la "caja fuerte" de Streamlit
-api_key = None
-if "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    os.environ["GOOGLE_API_KEY"] = api_key
-elif "GOOGLE_API_KEY" in os.environ:
-    api_key = os.environ["GOOGLE_API_KEY"]
-
-PDF_PATH = "documento.pdf"
-
 @st.cache_resource
 def preparar_agente(ruta_pdf, key):
-    if not os.path.exists(ruta_pdf):
-        st.error("No se encontró el catálogo 'documento.pdf'. Por favor súbelo a tu repositorio.")
+    if not key:
+        st.error("La clave API no está configurada.")
         return None
 
-    # Lectura y fragmentación del PDF
-    lector = PyPDFLoader(ruta_pdf)
-    paginas = lector.load()
+    if not os.path.exists(ruta_pdf):
+        st.error("No se encontró el archivo PDF.")
+        return None
+
+    try:
+        lector = PyPDFLoader(ruta_pdf)
+        paginas = lector.load()
+        if not paginas:
+            st.error("El PDF está vacío o no se pudo cargar.")
+            return None
+    except Exception as e:
+        st.error(f"Error al cargar el PDF: {e}")
+        return None
+
     separador = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     fragmentos = separador.split_documents(paginas)
 
-    # Embeddings y Base de Datos (entregando la clave en mano y usando el modelo actual)
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004", 
-        google_api_key=key
-    )
-    base_de_datos = FAISS.from_documents(fragmentos, embeddings)
-    buscador = base_de_datos.as_retriever(search_kwargs={"k": 3})
+    # Intentar con modelo más estable
+    try:
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="text-embedding-004",  # sin 'models/'
+            google_api_key=key
+        )
+        base_de_datos = FAISS.from_documents(fragmentos, embeddings)
+    except Exception as e:
+        st.error(f"❌ Error al generar embeddings: {e}")
+        return None
 
-    # Modelo de Inteligencia Artificial gratuito: Gemini 1.5 Flash
+    buscador = base_de_datos.as_retriever(search_kwargs={"k": 3})
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash", 
+        model="gemini-1.5-flash",
         temperature=0.2,
         google_api_key=key
     )
-    
+
     instrucciones = (
         "Eres un asesor de ventas y soporte técnico amable de la tienda 'TechStore Perú'. "
         "Responde a las preguntas del cliente utilizando ÚNICAMENTE la información del catálogo "
@@ -57,7 +46,6 @@ def preparar_agente(ruta_pdf, key):
         "Si no encuentras la respuesta en el documento, di amablemente que no posees esa información en el catálogo actual.\n\n"
         "Catálogo:\n{context}"
     )
-    
     plantilla_prompt = ChatPromptTemplate.from_messages([
         ("system", instrucciones),
         ("human", "{input}"),
@@ -65,21 +53,4 @@ def preparar_agente(ruta_pdf, key):
 
     cadena_respuestas = create_stuff_documents_chain(llm, plantilla_prompt)
     agente_final = create_retrieval_chain(buscador, cadena_respuestas)
-    
     return agente_final
-
-# 3. Flujo principal de la aplicación
-if os.path.exists(PDF_PATH):
-    if api_key:
-        mi_agente = preparar_agente(PDF_PATH, api_key)
-        pregunta = st.text_input("Escribe tu consulta sobre laptops, PC o accesorios aquí:")
-        
-        if pregunta:
-            with st.spinner("Consultando el catálogo de TechStore Perú..."):
-                resultado = mi_agente.invoke({"input": pregunta})
-                st.write("### 🤖 Respuesta del Asesor:")
-                st.write(resultado["answer"])
-    else:
-        st.warning("⚠️ Falta configurar la clave GOOGLE_API_KEY en los ajustes de Streamlit (Advanced settings -> Secrets).")
-else:
-    st.info("📂 Sube tu archivo 'documento.pdf' al repositorio para activar el asesor virtual.")
