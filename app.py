@@ -4,7 +4,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI  # Solo si usas Gemini para el LLM
+from langchain_community.llms import GPT4All
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
@@ -14,38 +14,43 @@ st.title("💻 Asistente TechStore Perú")
 st.write("¡Hola! Soy tu asesor de laptops. Pregúntame sobre modelos, precios, envíos, garantías o cualquier duda.")
 
 @st.cache_resource
-def preparar_agente(ruta_pdf, api_key=None):
+def preparar_agente(ruta_pdf):
     try:
+        # ========== 1. Cargar y dividir el PDF ==========
         loader = PyPDFLoader(ruta_pdf)
         paginas = loader.load()
         if not paginas:
             st.error("El PDF está vacío o no se pudo leer.")
             return None
 
-        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,
+            chunk_overlap=100,
+            separators=["\n\n", "\n", " ", ""]
+        )
         fragmentos = splitter.split_documents(paginas)
+        st.info(f"📄 {len(paginas)} páginas → ✂️ {len(fragmentos)} fragmentos.")
 
-        # ===== EMBEDDINGS LOCALES (sin API) =====
+        # ========== 2. Embeddings locales (sin API) ==========
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
-        # ========================================
 
+        # ========== 3. Vectorstore FAISS ==========
         vectorstore = FAISS.from_documents(fragmentos, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
-        # ===== Si usas Gemini para el LLM =====
-        if api_key:
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                temperature=0.2,
-                google_api_key=api_key
-            )
-        else:
-            st.error("No se proporcionó API key para el LLM.")
-            return None
-        # =====================================
+        # ========== 4. LLM local con GPT4All ==========
+        # El modelo se descargará automáticamente la primera vez
+        llm = GPT4All(
+            model="gpt4all-falcon-newbpe-q4_0.gguf",
+            temperature=0.2,
+            max_tokens=512,
+            n_ctx=1024,
+            verbose=False
+        )
 
+        # ========== 5. Prompt y cadena ==========
         prompt_template = (
             "Eres un asesor de ventas de laptops en 'TechStore Perú'. "
             "Responde usando ÚNICAMENTE la información del contexto proporcionado. "
@@ -63,7 +68,7 @@ def preparar_agente(ruta_pdf, api_key=None):
         chain = create_stuff_documents_chain(llm, prompt)
         agente = create_retrieval_chain(retriever, chain)
 
-        st.success("✅ Asistente listo para consultas.")
+        st.success("✅ Asistente listo (100% local).")
         return agente
 
     except Exception as e:
@@ -73,30 +78,19 @@ def preparar_agente(ruta_pdf, api_key=None):
 
 def main():
     PDF_PATH = "catalogo_laptops.pdf"
-    api_key = None
-
-    # Obtener clave de Gemini desde Secrets (si existe)
-    if "GOOGLE_API_KEY" in st.secrets:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-        os.environ["GOOGLE_API_KEY"] = api_key
-    elif "GOOGLE_API_KEY" in os.environ:
-        api_key = os.environ["GOOGLE_API_KEY"]
-
-    if not api_key:
-        st.error("❌ Configura GOOGLE_API_KEY en los Secrets de Streamlit para usar Gemini.")
-        st.stop()
 
     if not os.path.exists(PDF_PATH):
         st.error(f"❌ No se encontró el archivo '{PDF_PATH}'. Asegúrate de subirlo.")
         st.stop()
 
-    with st.spinner("🔧 Preparando asistente (esto puede tomar un minuto la primera vez)..."):
-        agente = preparar_agente(PDF_PATH, api_key)
+    with st.spinner("🔧 Preparando asistente (esto puede tardar unos minutos la primera vez)..."):
+        agente = preparar_agente(PDF_PATH)
 
     if agente is None:
         st.stop()
 
     pregunta = st.text_area("✍️ Escribe tu consulta sobre laptops, precios, envíos, etc.:", height=80)
+
     if st.button("Consultar", type="primary") and pregunta:
         with st.spinner("🔍 Buscando respuesta..."):
             try:
