@@ -8,45 +8,56 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-from google.api_core.exceptions import DeadlineExceeded, ResourceExhausted
 
 # ========== CONFIGURACIÓN ==========
 st.set_page_config(page_title="TechStore Perú - Asistente Laptops", page_icon="💻")
 st.title("💻 Asistente TechStore Perú")
 st.write("¡Hola! Soy tu asesor de laptops. Pregúntame sobre modelos, precios, envíos, garantías o cualquier duda.")
 
-# ========== FUNCIÓN PARA EMBEDDINGS CON REINTENTOS ==========
-def crear_vectorstore_con_reintentos(fragmentos, embeddings, batch_size=5, max_retries=3):
-    """Crea FAISS procesando los fragmentos en lotes con reintentos."""
+# ========== FUNCIÓN PARA EMBEDDINGS CON REINTENTOS (mejorada) ==========
+def crear_vectorstore_con_reintentos(fragmentos, embeddings, batch_size=1, max_retries=5):
+    """
+    Procesa los fragmentos uno por uno (batch_size=1) para evitar timeouts.
+    Reintenta hasta max_retries veces si el error indica timeout o sobrecarga.
+    """
     if not fragmentos:
         return None
+
     total = len(fragmentos)
     progress_bar = st.progress(0)
     status_text = st.empty()
     base = None
 
-    for i in range(0, total, batch_size):
-        batch = fragmentos[i:i+batch_size]
-        textos = [doc.page_content for doc in batch]
-        metadatas = [doc.metadata for doc in batch]
+    for i, doc in enumerate(fragmentos):
+        texto = doc.page_content
+        metadata = doc.metadata
 
         for intento in range(max_retries):
             try:
-                status_text.text(f"Lote {i//batch_size+1}/{(total-1)//batch_size+1} (intento {intento+1})...")
+                status_text.text(f"Fragmento {i+1}/{total} (intento {intento+1})...")
                 if base is None:
-                    base = FAISS.from_texts(textos, embeddings, metadatas=metadatas)
+                    base = FAISS.from_texts([texto], embeddings, metadatas=[metadata])
                 else:
-                    base.add_texts(textos, embeddings, metadatas=metadatas)
-                break
-            except (DeadlineExceeded, ResourceExhausted) as e:
-                if intento == max_retries - 1:
-                    st.error(f"Fallo tras {max_retries} intentos: {e}")
-                    raise
-                time.sleep(2 ** intento)
+                    base.add_texts([texto], embeddings, metadatas=[metadata])
+                # Pequeña pausa entre fragmentos
+                time.sleep(0.5)
+                break  # Éxito, salir del bucle de reintentos
             except Exception as e:
-                st.error(f"Error: {e}")
-                raise
-        progress_bar.progress(min((i + batch_size) / total, 1.0))
+                error_msg = str(e).lower()
+                # Reintentar solo si es un error de timeout o sobrecarga
+                if "504" in error_msg or "deadline" in error_msg or "timeout" in error_msg or "resource exhausted" in error_msg:
+                    if intento == max_retries - 1:
+                        st.error(f"Fallo el fragmento {i+1} después de {max_retries} intentos: {e}")
+                        raise
+                    wait = 2 ** (intento + 1)  # espera exponencial: 2, 4, 8, ...
+                    status_text.text(f"⏳ Reintentando en {wait}s...")
+                    time.sleep(wait)
+                else:
+                    # Otro tipo de error, no reintentar
+                    st.error(f"Error inesperado en fragmento {i+1}: {e}")
+                    raise
+
+        progress_bar.progress((i + 1) / total)
 
     progress_bar.empty()
     status_text.empty()
@@ -64,10 +75,10 @@ def preparar_agente(ruta_pdf, api_key):
             return None
         st.info(f"📄 {len(paginas)} páginas cargadas.")
 
-        # Dividir en fragmentos
+        # Dividir en fragmentos (más pequeños para reducir tiempo por llamada)
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=100,
+            chunk_size=300,          # reducido de 500 a 300
+            chunk_overlap=50,
             separators=["\n\n", "\n", " ", ""]
         )
         fragmentos = splitter.split_documents(paginas)
@@ -79,8 +90,13 @@ def preparar_agente(ruta_pdf, api_key):
             google_api_key=api_key
         )
 
-        # Vectorstore (con reintentos)
-        vectorstore = crear_vectorstore_con_reintentos(fragmentos, embeddings, batch_size=5)
+        # Vectorstore (con reintentos y batch_size=1)
+        vectorstore = crear_vectorstore_con_reintentos(
+            fragmentos,
+            embeddings,
+            batch_size=1,      # ¡clave! procesa uno a la vez
+            max_retries=5
+        )
 
         if vectorstore is None:
             st.error("No se pudo crear la base de vectores.")
@@ -117,13 +133,12 @@ def preparar_agente(ruta_pdf, api_key):
         return agente
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ Error al preparar el agente: {e}")
         st.exception(e)
         return None
 
 # ========== FLUJO PRINCIPAL ==========
 def main():
-    # Ruta CORREGIDA: el PDF está en la raíz del repositorio
     PDF_PATH = "catalogo_laptops.pdf"
     api_key = None
 
@@ -143,7 +158,7 @@ def main():
         st.stop()
 
     # Preparar agente (con caché)
-    with st.spinner("🔧 Preparando asistente..."):
+    with st.spinner("🔧 Preparando asistente (esto puede tomar unos segundos)..."):
         agente = preparar_agente(PDF_PATH, api_key)
 
     if agente is None:
@@ -159,12 +174,11 @@ def main():
                 st.markdown("### 🤖 Respuesta:")
                 st.write(respuesta["answer"])
 
-                # Mostrar fuentes (opcional)
                 with st.expander("📚 Fuentes consultadas"):
                     for doc in respuesta.get("context", []):
                         st.write(f"- Página {doc.metadata.get('page', '?')}")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error al obtener respuesta: {e}")
                 st.exception(e)
 
 if __name__ == "__main__":
