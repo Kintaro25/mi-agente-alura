@@ -28,7 +28,7 @@ def preparar_agente(ruta_pdf):
     fragmentos = separador.split_documents(paginas)
 
     # Embeddings y Base de Datos Vectorial gratuita de Google
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = GoogleGenerativeAIEmbeddings(model="embedding-001")
     base_de_datos = FAISS.from_documents(fragmentos, embeddings)
     buscador = base_de_datos.as_retriever(search_kwargs={"k": 3})
 
