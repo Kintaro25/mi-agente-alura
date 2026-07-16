@@ -4,7 +4,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
@@ -33,11 +33,13 @@ def preparar_agente(ruta_pdf, api_key):
         vectorstore = FAISS.from_documents(fragmentos, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+        # ===== LLM CON GROQ (rápido y gratuito) =====
+        llm = ChatGroq(
+            model="llama3-70b-8192",  # Modelo potente y rápido
             temperature=0.2,
-            google_api_key=api_key
+            groq_api_key=api_key
         )
+        # ===========================================
 
         prompt_template = (
             "Eres un asesor de ventas de laptops en 'TechStore Perú'. "
@@ -56,7 +58,7 @@ def preparar_agente(ruta_pdf, api_key):
         chain = create_stuff_documents_chain(llm, prompt)
         agente = create_retrieval_chain(retriever, chain)
 
-        st.success("✅ Asistente listo para consultas.")
+        st.success("✅ Asistente listo para consultas (con Groq).")
         return agente
 
     except Exception as e:
@@ -68,14 +70,15 @@ def main():
     PDF_PATH = "catalogo_laptops.pdf"
     api_key = None
 
-    if "GOOGLE_API_KEY" in st.secrets:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-        os.environ["GOOGLE_API_KEY"] = api_key
-    elif "GOOGLE_API_KEY" in os.environ:
-        api_key = os.environ["GOOGLE_API_KEY"]
+    # Obtener clave de Groq desde Secrets
+    if "GROQ_API_KEY" in st.secrets:
+        api_key = st.secrets["GROQ_API_KEY"]
+        os.environ["GROQ_API_KEY"] = api_key
+    elif "GROQ_API_KEY" in os.environ:
+        api_key = os.environ["GROQ_API_KEY"]
 
     if not api_key:
-        st.error("❌ Configura GOOGLE_API_KEY en los Secrets de Streamlit.")
+        st.error("❌ Configura GROQ_API_KEY en los Secrets de Streamlit.")
         st.stop()
 
     if not os.path.exists(PDF_PATH):
@@ -90,7 +93,7 @@ def main():
 
     pregunta = st.text_area("✍️ Escribe tu consulta sobre laptops, precios, envíos, etc.:", height=80)
     if st.button("Consultar", type="primary") and pregunta:
-        with st.spinner("🔍 Buscando respuesta..."):
+        with st.spinner("🔍 Buscando respuesta (Groq es rápido)..."):
             try:
                 respuesta = agente.invoke({"input": pregunta})
                 st.markdown("### 🤖 Respuesta:")
