@@ -3,7 +3,7 @@ langchain==0.2.5
 langchain-core==0.2.9
 langchain-community==0.2.5
 langchain-text-splitters==0.2.1
-langchain-google-genai==1.0.6
 pypdf==4.2.0
-faiss-cpu==1.8.0
-google-api-core
+faiss-cpu==1.14.3
+sentence-transformers
+langchain-google-genai
