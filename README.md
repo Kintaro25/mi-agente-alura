@@ -21,20 +21,8 @@ Búsqueda inteligente.
 Respuesta con IA.
 
 - Tecnologías usadas
-Herramienta	Para qué sirve
-Python	
-Streamlit(Crear la interfaz web)
-LangChain
-FAISS
-sentence-transformers (embeddings)
-Groq(Modelo de lenguaje para generar respuestas)
+Python, Streamlit(Crear la interfaz web), LangChain, FAISS, sentence-transformers (embeddings), Groq(Modelo de lenguaje para generar respuestas).
 
-mi-agente-alura/
-├── app.py                      # Código principal del asistente
-├── requirements.txt            # Librerías necesarias
-├── catalogo_laptops.pdf        # Catálogo de productos (fuente de información)
-├── README.md                   # Este archivo
-└── Captura de funcionamiento.png  # Captura de la app funcionando
 
 ¿Cómo ejecutarlo?
  1: Probar la versión en línea (recomendado)
