@@ -13,7 +13,8 @@ Puedes preguntarme sobre:
 🧠 ¿Cómo funciona?
 Este asistente usa Inteligencia Artificial para leer un catálogo en PDF y responder preguntas como si fuera un asesor de ventas.
 
-El proceso es simple:
+-El proceso es simple:
+
 Lectura del PDF.
 División en fragmentos.
 Generación de embeddings.
@@ -21,11 +22,13 @@ Búsqueda inteligente.
 Respuesta con IA.
 
 - Tecnologías usadas
+
 Python, Streamlit(Crear la interfaz web), LangChain, FAISS, sentence-transformers (embeddings), Groq(Modelo de lenguaje para generar respuestas).
 
 
 ¿Cómo ejecutarlo?
- 1: Probar la versión en línea (recomendado)
+
+1: Probar la versión en línea (recomendado)
 El asistente ya está desplegado en Streamlit Cloud. Puedes probarlo aquí:
 
 🔗 https://mi-agente-alura-isrlpekytdafhgjgsf7jhf.streamlit.app/
