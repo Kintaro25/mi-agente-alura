@@ -6,4 +6,6 @@ langchain-text-splitters==0.2.1
 pypdf==4.2.0
 faiss-cpu==1.14.3
 sentence-transformers
-gpt4all
+transformers
+torch
+accelerate
